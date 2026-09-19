@@ -8,6 +8,8 @@ The first successful real-session run is documented in [V1 validation](v1-valida
 
 `npm run demo` uses a scripted model and synthetic SDK-format history. Its output is an implementation smoke test, not evidence that Laguna can produce a good handoff.
 
+Regression tests also cover copy/resume system-prompt configuration, preservation of coding-agent and compaction-model settings, recovery of the full original handoff after an abbreviated native checkpoint, and missing/blank/present API keys. For a manual fallback check, configure an absent `apiKeyEnv` variable, reload Kilo, and compact a disposable conversation: native compaction should run without a separate compactor request, carrying a brief key-setup note into the checkpoint. Set the key and reload to enable agentic mode.
+
 `npm run test:live` sends only the synthetic fixture to the configured model. It tests agentic transcript exploration and handoff generation, not the real Kilo lifecycle. Its string checks are diagnostic. Read the generated handoff; a passing string check does not establish correctness.
 
 ## Real Kilo scenario
@@ -33,4 +35,4 @@ If plugin loading fails, collect the Kilo plugin-load error, without credentials
 - Repeated-compaction behavior over longer sessions.
 - DICA authentication, reasoning options, and tool-call compatibility.
 - Whether keeping a persistent handoff materially improves over prompt-only compaction.
-- Exact handoff reproduction by the native pass-through model and reduced redundant reasoning in a targeted live comparison. Agentic mode replaces the summarization instruction, but retains Kilo's native call and summary storage.
+- Copy/resume prompt compliance, disclosure of abbreviated copies, setup-note delivery, and reduced redundant reasoning in a targeted live comparison. Agentic mode replaces the system and user summarization instructions, but retains Kilo's native call and summary storage.

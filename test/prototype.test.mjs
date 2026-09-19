@@ -238,23 +238,108 @@ test("plugin leaves output.prompt untouched and includes latest retained message
   assert.match(output.context.join("\n"), /Latest correction/);
 });
 
-test("agentic mode passes through a completed handoff and resumes only after native summary succeeds", async () => {
+test("agentic config replaces the compaction system prompt while preserving coding agents and model settings", async () => {
+  const { hooks } = await setup();
+  const code = { prompt: "Implement the user's task", model: "provider/coder" };
+  const kiloConfig = { agent: { code, compaction: { prompt: "Summarize only the conversation history", model: "provider/compactor", temperature: 0.1 } } };
+  await hooks.config(kiloConfig);
+  assert.equal(kiloConfig.agent.code, code);
+  assert.equal(kiloConfig.agent.compaction.model, "provider/compactor");
+  assert.equal(kiloConfig.agent.compaction.temperature, 0.1);
+  assert.match(kiloConfig.agent.compaction.prompt, /copy\/resume checkpoint/);
+  assert.doesNotMatch(kiloConfig.agent.compaction.prompt, /Summarize only the conversation history/);
+  assert.match(kiloConfig.agent.compaction.prompt, /abbreviated copy/);
+  assert.match(kiloConfig.agent.compaction.prompt, /Actual coding resumes in the following/);
+  const empty = {};
+  await hooks.config(empty);
+  assert.equal(empty.agent.compaction.prompt, kiloConfig.agent.compaction.prompt);
+});
+
+test("prompt mode preserves Kilo's configured compaction system prompt", async () => {
+  const { hooks } = await setup({ mode: "prompt" });
+  const kiloConfig = { agent: { compaction: { prompt: "Summarize only the conversation history" } } };
+  const original = structuredClone(kiloConfig);
+  await hooks.config(kiloConfig);
+  assert.deepEqual(kiloConfig, original);
+  const empty = {};
+  await hooks.config(empty);
+  assert.deepEqual(empty, {});
+});
+
+test("missing or blank configured API key falls back to native compaction with setup guidance", async () => {
+  const keyName = "KILO_HANDOFF_TEST_MISSING_KEY";
+  const previous = process.env[keyName];
+  try {
+    for (const value of [undefined, "", "   "]) {
+      if (value === undefined) delete process.env[keyName];
+      else process.env[keyName] = value;
+      const { hooks } = await setup({ apiKeyEnv: keyName }, () => { throw new Error("Compactor must not make a request without its key"); });
+      const kiloConfig = { agent: { compaction: { prompt: "Native summarizer", model: "provider/native" } } };
+      await hooks.config(kiloConfig);
+      assert.equal(kiloConfig.agent.compaction.prompt, "Native summarizer");
+      const output = { context: [] };
+      await hooks["experimental.session.compacting"]({ sessionID: "s1" }, output);
+      assert.equal(output.prompt, undefined);
+      const context = output.context.join("\n");
+      assert.match(context, /Latest correction/);
+      assert.ok(context.includes(keyName));
+      assert.match(context, /normal Kilo compaction/);
+      assert.match(context, /shared env file/);
+      assert.match(context, /reload Kilo/);
+      const system = { system: ["Native summarizer"] };
+      await hooks["experimental.chat.system.transform"]({ sessionID: "s1" }, system);
+      assert.equal(system.system[0], "Native summarizer");
+      assert.doesNotMatch(system.system.join("\n"), /copy\/resume checkpoint|Compaction is complete/);
+    }
+  } finally {
+    if (previous === undefined) delete process.env[keyName];
+    else process.env[keyName] = previous;
+  }
+});
+
+test("available configured API key retains agentic copy/resume without exposing its value", async () => {
+  const keyName = "KILO_HANDOFF_TEST_PRESENT_KEY";
+  const previous = process.env[keyName];
+  process.env[keyName] = "synthetic-present-key";
+  try {
+    const { hooks } = await setup({ apiKeyEnv: keyName });
+    const kiloConfig = {};
+    await hooks.config(kiloConfig);
+    assert.match(kiloConfig.agent.compaction.prompt, /copy\/resume checkpoint/);
+    const output = { context: [] };
+    await hooks["experimental.session.compacting"]({ sessionID: "s1" }, output);
+    assert.ok(output.prompt.includes(handoff));
+    assert.doesNotMatch(JSON.stringify({ kiloConfig, output }), /synthetic-present-key/);
+  } finally {
+    if (previous === undefined) delete process.env[keyName];
+    else process.env[keyName] = previous;
+  }
+});
+
+test("agentic copy/resume preserves the full handoff even when the native checkpoint is abbreviated", async () => {
   const t = await setup();
   const output = { context: [] };
   await t.hooks["experimental.session.compacting"]({ sessionID: "s1" }, output);
   assert.ok(output.prompt.includes(handoff));
-  assert.match(output.prompt, /Output the text.*verbatim/);
+  assert.match(output.prompt, /preferably verbatim/);
+  assert.match(output.prompt, /This checkpoint is an abbreviated copy/);
+  const encodedPath = output.prompt.match(/Full handoff file path \(JSON-encoded\): (.+)/)[1];
+  const handoffPath = JSON.parse(encodedPath);
+  assert.equal(await readFile(handoffPath, "utf8"), handoff);
   assert.doesNotMatch(output.prompt, /Prepare a handoff for another instance/);
   assert.deepEqual(output.context, []);
   const during = { system: [] };
   await t.hooks["experimental.chat.system.transform"]({ sessionID: "s1" }, during);
   assert.doesNotMatch(during.system.join("\n"), /Compaction is complete/);
-  t.set([...history, message("native", "assistant", handoff, { summary: true, finish: "stop" })]);
+  t.set([...history, message("native", "assistant", `This checkpoint is an abbreviated copy. Full handoff: ${handoffPath}. Resume the retry-limit task.`, { summary: true, finish: "stop" })]);
   await t.hooks["experimental.compaction.autocontinue"]({ sessionID: "s1" });
   const after = { system: [] };
   await t.hooks["experimental.chat.system.transform"]({ sessionID: "s1" }, after);
   assert.match(after.system.join("\n"), /Compaction is complete/);
   assert.match(after.system.join("\n"), /stopping for review/);
+  assert.ok(after.system.join("\n").includes(handoff));
+  assert.ok(after.system.join("\n").includes(handoffPath));
+  assert.match(after.system.join("\n"), /native checkpoint may be an abbreviated copy/);
   // Next compaction must not inject the prior resume instruction into its native summarizer.
   const nextHooks = await plugin.server(t.input, { ...t.options, fetchImpl: scriptedModel() });
   await nextHooks["experimental.session.compacting"]({ sessionID: "s1" }, { context: [] });

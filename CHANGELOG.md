@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.2 — copy/resume and credential fallback — 2026-09-19
+
+- Aligned the native compaction agent's system prompt and per-call user prompt on copying the prepared handoff for resumption. Earlier releases only replaced the user prompt, leaving a conflicting summarizer system prompt.
+- Allowed an explicitly abbreviated checkpoint with the full handoff file path and retrieval guidance. The following coding turn still receives the full original handoff after successful native compaction.
+- Missing or blank configured API keys now fall back to normal Kilo compaction with prompt assistance and a setup note. Keyless endpoints remain supported; provider failures are not silently swallowed.
+- Added regression coverage for system-prompt replacement, preservation of other agent settings, abbreviated checkpoints, and missing/present credentials. Targeted live Kilo validation remains pending.
+
 ## 1.1.1 — packaged Kilo plugin release — 2026-09-19
 
 - Enabled agentic reasoning diagnostics by default; `debugReasoning: false` disables them. Configuration examples and regression tests cover the default and opt-out.

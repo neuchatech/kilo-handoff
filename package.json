@@ -1,6 +1,6 @@
 {
   "name": "kilo-handoff",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "license": "UNLICENSED",
   "description": "Agentic, file-backed context handoffs for Kilo Code",

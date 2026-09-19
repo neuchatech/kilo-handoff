@@ -2,17 +2,17 @@
 
 ## Current status
 
-The repository is [`neuchatech/kilo-handoff`](https://github.com/neuchatech/kilo-handoff), version 1.1.1, tagged `v1.1.1`. The release artifact is `kilo-handoff-1.1.1.tgz`. The earlier `V1` tag is preserved. `private: true` prevents accidental npm publication; `license: UNLICENSED` retains the existing distribution terms.
+The repository is [`neuchatech/kilo-handoff`](https://github.com/neuchatech/kilo-handoff), version 1.1.2, tagged `v1.1.2`. The release artifact is `kilo-handoff-1.1.2.tgz`. The earlier `V1` tag is preserved. `private: true` prevents accidental npm publication; `license: UNLICENSED` retains the existing distribution terms.
 
 The package exposes `kilo-handoff/server` and the root entrypoint as the same default `{ id: "kilo-handoff", server }` descriptor. The `./server` export identifies it as a server plugin under [Kilo's documented package format](https://kilo.ai/docs/automate/extending/plugins). No build step or runtime dependency installation is required. Compatibility was originally exercised with Kilo VS Code 7.7.5; the experimental compaction hooks must be checked on other versions.
 
 ## Create/install a private package
 
-Run `npm test`, `npm run demo`, then `npm run pack:release`. The last command creates `dist/` and packs the explicit file allowlist into `dist/kilo-handoff-1.1.1.tgz`.
+Run `npm test`, `npm run demo`, then `npm run pack:release`. The last command creates `dist/` and packs the explicit file allowlist into `dist/kilo-handoff-1.1.2.tgz`.
 
-Extract the archive to a permanent directory with `tar -xzf kilo-handoff-1.1.1.tgz`, enter the extracted `package/` folder, and run `npm run setup`. Setup creates local configuration and writes a Kilo plugin URL for that installation path, preserving existing settings. Enter credentials locally, choose the endpoint/model, and reload Kilo. Agentic reasoning diagnostics are enabled unless `debugReasoning` is explicitly `false`.
+Extract the archive to a permanent directory with `tar -xzf kilo-handoff-1.1.2.tgz`, enter the extracted `package/` folder, and run `npm run setup`. Setup creates local configuration and writes a Kilo plugin URL for that installation path, preserving existing settings. Enter credentials locally, choose the endpoint/model, and reload Kilo. Agentic reasoning diagnostics are enabled unless `debugReasoning` is explicitly `false`.
 
-For a GitHub release, push the release commit and `v1.1.1` tag, then attach the tarball to the matching release. A local tag and tarball do not publish a GitHub release or an npm package.
+For a GitHub release, push the release commit and `v1.1.2` tag, then attach the tarball to the matching release. A local tag and tarball do not publish a GitHub release or an npm package.
 
 For another workspace, add the printed file URL to its `kilo.json` (or supported `.kilo/kilo.json`) plugin array. Set `compaction.tail_turns: 0` if testing full handoff-based retention. Add `.kilo/compaction/` to that workspace's ignore rules. Configure Kilo's ordinary chat and native compaction providers independently: the plugin config controls only the separate agentic compactor.
 

@@ -1,6 +1,6 @@
 # kilo-handoff
 
-**Kilo Handoff 1.1.1** is a packaged Kilo server plugin for preserving task state and learned working procedures across compaction. It includes the prepared-handoff pass-through fix and enables reasoning diagnostics by default.
+**Kilo Handoff 1.1.2** is a packaged Kilo server plugin for preserving task state and learned working procedures across compaction. It aligns Kilo's system and user prompts on a copy/resume checkpoint, falls back to normal compaction when the configured API key is missing, and enables reasoning diagnostics by default.
 
 The first successful real Kilo session compaction was validated on 2026-09-19: the user reported immediate continuation of interrupted C development, and local session inspection confirmed handoff activation and resumed implementation. The subsequent pass-through refinement is covered by automated tests; a targeted live comparison is still pending. See [validation, metrics and follow-up experiments](docs/v1-validation.md). No Kilo fork or runtime dependencies are required.
 
@@ -8,7 +8,7 @@ The first successful real Kilo session compaction was validated on 2026-09-19: t
 
 Requires Node 22+ for setup/tests. Kilo loads the plugin in its own runtime. Validated with Kilo VS Code 7.7.5; experimental hook compatibility with other releases must be checked.
 
-1. Extract `kilo-handoff-1.1.1.tgz` into a permanent directory and enter its `package/` folder, or clone the repository and check out `v1.1.1`.
+1. Extract `kilo-handoff-1.1.2.tgz` into a permanent directory and enter its `package/` folder, or clone the repository and check out `v1.1.2`.
 2. Run `npm run setup`. It creates `.env`, `config.local.json` and `kilo.json` for the actual installation path, preserving existing local settings.
 3. Enter `OPENROUTER_API_KEY` in `.env`, or configure the shared env file described below. Configure your chosen endpoint/model in `config.local.json`.
 4. Run `npm test` and `npm run demo` for offline checks. `npm run test:live` makes billable requests using only the synthetic fixture.
@@ -21,7 +21,9 @@ The tarball is an npm-format package with an explicit `./server` export and a de
 
 ## Two modes
 
-**Prepared-handoff pass-through.** Agentic mode replaces the native compaction prompt with an instruction to reproduce the already-completed handoff verbatim. This addresses the redundant summarization instruction: the native model is no longer asked to create a second summary. The compactor itself still sees earlier summaries through the full SDK snapshot. The coding agent receives a separate continuation instruction only after native summary success; pending compaction calls do not receive it. A user-requested stop/review takes precedence over inferred next work. Kilo still makes its native model call, so this is a prompt-level fix; exact reproduction and reduced redundant reasoning still need targeted live verification.
+**Copy/resume checkpoint.** Agentic mode replaces both Kilo's compaction agent system prompt (through the configuration hook) and its per-compaction user prompt. Both ask it to copy the completed handoff for the next coding turn instead of summarizing the conversation again. A complete verbatim copy is preferred; any shortened copy must identify itself as abbreviated, retain the full handoff file path, and tell the coding agent where to obtain omitted details. The native checkpoint ends with a brief resume instruction. It does not execute coding work itself. The compactor still sees earlier summaries through the full SDK snapshot, and stop/review instructions and newer user messages take precedence over inferred next work. Kilo's native model call remains; model compliance and reduced redundant reasoning still need targeted live verification.
+
+The system-prompt change applies only to Kilo's `compaction` agent when agentic mode is available. It replaces any custom prompt on that agent while preserving its model and other settings. Normal coding-agent prompts and prompt-only mode are unchanged. Reload Kilo after changing plugin settings.
 
 Tool results sent to the compactor are plain text: source IDs, offsets/cursors and text, with no nested JSON envelope. Search output deduplicates overlapping context lines. `read_message` uses the readable transcript view, omitting internal tool metadata and duplicate patch metadata while retaining command/input content, output and errors. The original structured snapshot is untouched. These changes reduce payload size; they do not prune accumulated conversation history or impose a context cap. Debug JSON remains structured for analysis. The OpenRouter example now allows 16,384 completion tokens because returned reasoning shares that allowance with the final answer/tool call; this is distinct from the input context window.
 
@@ -30,7 +32,7 @@ The compactor has an `rg_transcript` tool implementing a literal-search subset o
 This project's `kilo.json` sets `compaction.tail_turns: 0`, disabling automatic recent-turn retention. The handoff prompt assumes no original messages survive and asks the compactor to select exact excerpts from anywhere in the transcript, labelled by message ID and role. These excerpts stay inside the handoff file; they are not reinserted as native user/assistant turns. Kilo can still replay a pending request through its separate overflow-recovery path.
 
 - `prompt`: adds working-procedure instructions and recent-message orientation through `output.context`. Does not replace `output.prompt`, so Kilo retains its previous-summary assembly. Archives the SDK-visible transcript locally. Makes no extra model requests.
-- `agentic`: additionally runs a separate compactor against the configured OpenAI-compatible endpoint. Its only tools are transcript indexing, literal search, bounded reads, draft notes, and replacement of the final handoff file. It preserves returned reasoning fields through tool turns, then sets `output.prompt` to pass through the completed handoff. Once Kilo produces a successful native summary, the handoff becomes persistent context for subsequent calls.
+- `agentic`: additionally runs a separate compactor against the configured OpenAI-compatible endpoint. Its only tools are transcript indexing, literal search, bounded reads, draft notes, and replacement of the final handoff file. It preserves returned reasoning fields through tool turns, then supplies the completed handoff and file path for the native copy/resume checkpoint. Once Kilo produces a successful native summary, the full handoff becomes persistent context for subsequent calls.
 
 After Kilo's native pass-through call succeeds, the plugin also injects the original prepared handoff directly as labelled historical context through the system hook. This preserves the compactor's handoff even if the native model changes its copy. The extra native call and the handoff's system-context cost remain; removing that call requires upstream support for storing a completed handoff directly.
 
@@ -59,6 +61,8 @@ For example, create a central `C:/Users/YOUR_NAME/.config/kilo/handoff.env` cont
 ```
 
 This path is a convention you choose, not an assumption about Kilo's platform-specific config location. Point all plugin instances to the same JSON using `KILO_HANDOFF_CONFIG` if desired. Files are loaded when the plugin initializes. The plugin does not mutate process-wide environment variables. Remove `apiKeyEnv` for an endpoint that requires no key.
+
+If `mode` is `agentic` and the variable named by `apiKeyEnv` is missing or blank after credential resolution, the plugin falls back to prompt-only assistance with Kilo's normal compaction. It leaves Kilo's native system and user prompts intact and makes no separate compactor request. It adds a setup note to the compaction context asking the next coding turn to briefly explain how to set the variable in the plugin's `.env`, shared env file, or process environment and reload Kilo. This fallback does not supply Kilo's own provider credentials; configure those separately. Endpoints without `apiKeyEnv` remain agentic. Invalid keys and provider errors still surface normally.
 
 `endpoint` must be the complete chat-completions URL. Only explicitly allowed hostnames are accepted; redirects are rejected. `requestOptions` can carry backend-specific reasoning options, but cannot override the model, messages, tools, or streaming mode. OpenRouter's example enables reasoning; DICA's exact options remain to be confirmed.
 

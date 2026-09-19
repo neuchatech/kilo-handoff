@@ -1,7 +1,7 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { atomicWrite, readJSON, normalizeMessages, sessionDirectory } from "./storage.mjs";
-import { instructions, preparedSummaryPrompt, resumeInstructions } from "./prompts.mjs";
+import { instructions, copyResumeInstructions, preparedSummaryPrompt, resumeInstructions } from "./prompts.mjs";
 import { runAgent } from "./agent.mjs";
 import { loadConfig } from "./config.mjs";
 
@@ -9,6 +9,11 @@ import { loadConfig } from "./config.mjs";
 async function KiloHandoff(input, options = {}) {
   const { config, environment } = await loadConfig(options.config);
   if (!["prompt", "agentic"].includes(config.mode)) throw new Error("kilo-handoff mode must be prompt or agentic");
+  const missingKey = config.mode === "agentic" && config.apiKeyEnv && !environment[config.apiKeyEnv]?.trim();
+  const mode = missingKey ? "prompt" : config.mode;
+  const setupNote = missingKey
+    ? `Kilo Handoff used normal Kilo compaction because the configured credential variable ${JSON.stringify(config.apiKeyEnv)} is missing or blank. In the next coding turn, briefly tell the user how to enable agentic handoffs: set that variable in the plugin installation's .env, the configured shared env file, or the process environment, then reload Kilo. Keep this as a setup note; continue the latest task when authorized. Do not ask the user to paste the key into chat.`
+    : undefined;
   const stateRoot = config.stateDirectory ?? path.join(input.directory, ".kilo", "compaction");
   const pending = new Map();
   const running = new Set();
@@ -34,6 +39,14 @@ async function KiloHandoff(input, options = {}) {
   }
 
   return {
+    config: async kiloConfig => {
+      if (mode !== "agentic") return;
+      // Replacing output.prompt alone leaves Kilo's summarizer system prompt in place.
+      // Configure only the compaction agent; retain its model and other settings.
+      kiloConfig.agent ??= {};
+      kiloConfig.agent.compaction ??= {};
+      kiloConfig.agent.compaction.prompt = copyResumeInstructions;
+    },
     "experimental.session.compacting": async ({ sessionID }, output) => {
       if (output.prompt !== undefined) throw new Error("Disable the other prompt-replacing compaction plugin before using kilo-handoff");
       if (running.has(sessionID)) throw new Error("kilo-handoff compaction already running for this session");
@@ -44,18 +57,19 @@ async function KiloHandoff(input, options = {}) {
         const runDirectory = path.join(folder(sessionID), randomUUID());
         const snapshotPath = path.join(runDirectory, "transcript.json");
         await atomicWrite(snapshotPath, JSON.stringify(records, null, 2));
-        if (config.mode === "prompt") {
+        if (mode === "prompt") {
           output.context.push(instructions);
+          if (setupNote) output.context.push(`Configuration note to preserve for the next coding turn:\n${setupNote}`);
           if (config.operatingRules) output.context.push(`Explicit configured working instructions:\n${config.operatingRules}`);
           output.context.push("Latest messages for orientation (bounded excerpts; do not assume they survive outside the handoff):\n" + JSON.stringify(records.slice(-6).map(r => ({ ...r, text: r.text.slice(-2000) }))));
         }
-        if (config.mode === "agentic") {
+        if (mode === "agentic") {
           const result = await runAgent({ snapshotPath, workDirectory: runDirectory, config, environment, operatingRules: config.operatingRules, fetchImpl: options.fetchImpl });
           const candidate = { ids: records.map(r => r.id), cutoffID: records.at(-1)?.id, snapshotPath, searchablePath: path.join(runDirectory, "transcript.txt"), handoffPath: path.join(runDirectory, "handoff.md"), handoff: result.handoff };
           pending.set(sessionID, candidate);
           // The agentic pass already read the full SDK snapshot, including prior summaries.
-          // Replace the native summarization request with a pass-through instruction.
-          output.prompt = preparedSummaryPrompt(result.handoff);
+          // Pair the copy/resume system role with the completed handoff and its path.
+          output.prompt = preparedSummaryPrompt(result.handoff, candidate.handoffPath);
         }
       } finally { running.delete(sessionID); }
     },
@@ -65,7 +79,7 @@ async function KiloHandoff(input, options = {}) {
     },
     "experimental.chat.system.transform": async ({ sessionID }, output) => {
       if (config.operatingRules) output.system.push(`Configured project working instructions (later explicit user changes take precedence):\n${config.operatingRules}`);
-      if (!sessionID || config.mode !== "agentic") return;
+      if (!sessionID || mode !== "agentic") return;
       await activate(sessionID);
       // While native compaction is pending, do not tell its summarizer to resume coding
       // or inject the previous active handoff alongside the newly prepared one.
