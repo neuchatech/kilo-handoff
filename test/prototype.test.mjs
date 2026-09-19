@@ -77,12 +77,12 @@ test("debug records provider HTTP error details", async () => {
   assert.equal(log.detail.code, "context_length_exceeded");
 });
 
-test("opt-in debug saves returned reasoning even on output-limit failure and redacts API key", async () => {
+test("default debug saves returned reasoning even on output-limit failure and redacts API key", async () => {
   const dir = await temp();
   const snapshotPath = path.join(dir, "transcript.json");
   await atomicWrite(snapshotPath, JSON.stringify(normalizeMessages(history)));
   await assert.rejects(runAgent({ snapshotPath, workDirectory: dir,
-    config: { ...config, debugReasoning: true, apiKeyEnv: "KEY" }, environment: { KEY: "fake-secret-123" },
+    config: { ...config, apiKeyEnv: "KEY" }, environment: { KEY: "fake-secret-123" },
     fetchImpl: async () => Response.json({ choices: [{ finish_reason: "length", message: { role: "assistant", content: null, reasoning: "Synthetic reasoning fake-secret-123" } }] }),
   }), /output limit/);
   for (const file of ["debug.md", "debug.jsonl"]) {
@@ -92,12 +92,13 @@ test("opt-in debug saves returned reasoning even on output-limit failure and red
   }
 });
 
-test("reasoning debugging is disabled by default", async () => {
+test("reasoning debugging can be explicitly disabled", async () => {
   const dir = await temp();
   const snapshotPath = path.join(dir, "transcript.json");
   await atomicWrite(snapshotPath, JSON.stringify(normalizeMessages(history)));
-  await runAgent({ snapshotPath, workDirectory: dir, config, fetchImpl: scriptedModel() });
+  await runAgent({ snapshotPath, workDirectory: dir, config: { ...config, debugReasoning: false }, fetchImpl: scriptedModel() });
   assert.equal((await readdir(dir)).includes("debug.md"), false);
+  assert.equal((await readdir(dir)).includes("debug.jsonl"), false);
 });
 
 test("default permits accumulated context beyond the former 220000 character cap", async () => {

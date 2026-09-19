@@ -56,7 +56,7 @@ export async function runAgent({ snapshotPath, workDirectory, config, environmen
     { role: "user", content: JSON.stringify({ messageCount: records.length, latestIndices: records.slice(-6).map(r => r.index), operatingRules, maxHandoffChars }) },
   ];
   const trace = [];
-  const debug = createDebugLog(workDirectory, config.debugReasoning === true, config.apiKeyEnv && environment[config.apiKeyEnv]);
+  const debug = createDebugLog(workDirectory, config.debugReasoning !== false, config.apiKeyEnv && environment[config.apiKeyEnv]);
   let notes = "", handoff;
   let finalizing = false;
   let status = "running";

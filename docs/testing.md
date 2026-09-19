@@ -4,7 +4,7 @@ The first successful real-session run is documented in [V1 validation](v1-valida
 
 ## Automated
 
-`npm test` covers transcript access, reasoning-field replay, recent-tail orientation, unchanged output.prompt, activation only after a successful summary, persistence across plugin restarts, revert isolation, error propagation, unknown tools, network allowlisting, transcript filtering, and session path isolation.
+`npm test` covers transcript access, reasoning-field replay, default reasoning diagnostics and explicit opt-out, API-key redaction, recent-tail orientation, unchanged `output.prompt` in prompt mode, prepared-handoff pass-through in agentic mode, activation only after a successful summary, persistence across plugin restarts, revert isolation, error propagation, unknown tools, network allowlisting, transcript filtering, and session path isolation.
 
 `npm run demo` uses a scripted model and synthetic SDK-format history. Its output is an implementation smoke test, not evidence that Laguna can produce a good handoff.
 
@@ -33,4 +33,4 @@ If plugin loading fails, collect the Kilo plugin-load error, without credentials
 - Repeated-compaction behavior over longer sessions.
 - DICA authentication, reasoning options, and tool-call compatibility.
 - Whether keeping a persistent handoff materially improves over prompt-only compaction.
-- Native replacement of the summary and resume-message sequence: this prototype deliberately retains Kilo's own compaction.
+- Exact handoff reproduction by the native pass-through model and reduced redundant reasoning in a targeted live comparison. Agentic mode replaces the summarization instruction, but retains Kilo's native call and summary storage.

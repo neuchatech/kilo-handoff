@@ -1,5 +1,6 @@
 {
   "mode": "prompt",
+  "debugReasoning": true,
   "operatingRules": "Builds require the user to run Visual Studio. Ask the user when a build is needed and wait for their output. Do not attempt shell builds unless the user explicitly asks to investigate building from the shell.",
   "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
   "model": "REPLACE_WITH_LOCAL_MODEL_ID",

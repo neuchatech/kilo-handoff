@@ -1,5 +1,7 @@
 # V1: first successful real-session compaction
 
+This report describes the original validation checkpoint. Release 1.1.1 also includes a later prompt-level fix instructing Kilo's native call to reproduce the prepared handoff, plus default reasoning diagnostics. The observations below do not establish live validation of those later changes. See the [current README](../README.md) for release behavior.
+
 Validated on 2026-09-19 with Kilo VS Code 7.7.5 and OpenRouter `poolside/laguna-s-2.1`. This is an internal experimental V1, not a claim of general production readiness or DICA validation.
 
 ## Scenario and observed outcome
@@ -62,4 +64,4 @@ The native compaction call still runs after the plugin's compactor. API failures
 - Validate DICA's authentication, tool-call format, reasoning fields and effective context/output limits.
 - Investigate an upstream completed-handoff hook to remove the extra native summarization call.
 
-The V1 commit freezes current behavior before these experiments.
+The original validation preceded the pass-through refinement. The historical commits were subsequently squashed into the `V1` release commit; their former individual hashes are no longer release references.

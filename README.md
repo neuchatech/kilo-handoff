@@ -1,14 +1,14 @@
 # kilo-handoff
 
-**V1 (1.0.0): first successful real Kilo session compaction validated on 2026-09-19.** The user reported immediate continuation of interrupted C development; local artifacts and session inspection confirm handoff activation and resumed implementation. See [validation, metrics and follow-up experiments](docs/v1-validation.md).
+**Kilo Handoff 1.1.1** is a packaged Kilo server plugin for preserving task state and learned working procedures across compaction. It includes the prepared-handoff pass-through fix and enables reasoning diagnostics by default.
 
-Plugin-first experiment for preserving task state and learned working procedures across Kilo compaction. No Kilo fork and no runtime dependencies. Node 22+ runs the tests; Kilo loads the plugin in its own runtime.
+The first successful real Kilo session compaction was validated on 2026-09-19: the user reported immediate continuation of interrupted C development, and local session inspection confirmed handoff activation and resumed implementation. The subsequent pass-through refinement is covered by automated tests; a targeted live comparison is still pending. See [validation, metrics and follow-up experiments](docs/v1-validation.md). No Kilo fork or runtime dependencies are required.
 
 ## Install and try it
 
 Requires Node 22+ for setup/tests. Kilo loads the plugin in its own runtime. Validated with Kilo VS Code 7.7.5; experimental hook compatibility with other releases must be checked.
 
-1. Clone or extract the plugin into a permanent directory.
+1. Extract `kilo-handoff-1.1.1.tgz` into a permanent directory and enter its `package/` folder, or clone the repository and check out `v1.1.1`.
 2. Run `npm run setup`. It creates `.env`, `config.local.json` and `kilo.json` for the actual installation path, preserving existing local settings.
 3. Enter `OPENROUTER_API_KEY` in `.env`, or configure the shared env file described below. Configure your chosen endpoint/model in `config.local.json`.
 4. Run `npm test` and `npm run demo` for offline checks. `npm run test:live` makes billable requests using only the synthetic fixture.
@@ -17,9 +17,11 @@ Requires Node 22+ for setup/tests. Kilo loads the plugin in its own runtime. Val
 
 For deployment to an internal codebase, configure approved internal endpoints in both Kilo and this plugin before opening real work. The OpenRouter example is for external-provider testing. See [private deployment and release instructions](docs/release.md).
 
+The tarball is an npm-format package with an explicit `./server` export and a default `{ id, server }` plugin descriptor, following [Kilo's plugin packaging format](https://kilo.ai/docs/automate/extending/plugins). This release is distributed as an extractable package; it is not published to the npm registry. Build the tarball from a checkout with `npm run pack:release`.
+
 ## Two modes
 
-**1.1 continuation refinement (live comparison pending).** Agentic mode now replaces the native compaction prompt with an instruction to reproduce the already-completed handoff, rather than asking it to summarize again. The compactor itself still sees earlier summaries through the full SDK snapshot. Prompt-only mode retains the original `output.context` behavior. The coding agent receives a separate continuation instruction only after native summary success; pending compaction calls do not receive it. A user-requested stop/review takes precedence over inferred next work. This is a prompt-level pass-through, not a deterministic replacement of Kilo's summary call; fidelity and reduced redundant reasoning still need live verification. V1 commit `07eab69` remains the validated baseline.
+**Prepared-handoff pass-through.** Agentic mode replaces the native compaction prompt with an instruction to reproduce the already-completed handoff verbatim. This addresses the redundant summarization instruction: the native model is no longer asked to create a second summary. The compactor itself still sees earlier summaries through the full SDK snapshot. The coding agent receives a separate continuation instruction only after native summary success; pending compaction calls do not receive it. A user-requested stop/review takes precedence over inferred next work. Kilo still makes its native model call, so this is a prompt-level fix; exact reproduction and reduced redundant reasoning still need targeted live verification.
 
 Tool results sent to the compactor are plain text: source IDs, offsets/cursors and text, with no nested JSON envelope. Search output deduplicates overlapping context lines. `read_message` uses the readable transcript view, omitting internal tool metadata and duplicate patch metadata while retaining command/input content, output and errors. The original structured snapshot is untouched. These changes reduce payload size; they do not prune accumulated conversation history or impose a context cap. Debug JSON remains structured for analysis. The OpenRouter example now allows 16,384 completion tokens because returned reasoning shares that allowance with the final answer/tool call; this is distinct from the input context window.
 
@@ -30,7 +32,7 @@ This project's `kilo.json` sets `compaction.tail_turns: 0`, disabling automatic 
 - `prompt`: adds working-procedure instructions and recent-message orientation through `output.context`. Does not replace `output.prompt`, so Kilo retains its previous-summary assembly. Archives the SDK-visible transcript locally. Makes no extra model requests.
 - `agentic`: additionally runs a separate compactor against the configured OpenAI-compatible endpoint. Its only tools are transcript indexing, literal search, bounded reads, draft notes, and replacement of the final handoff file. It preserves returned reasoning fields through tool turns, then sets `output.prompt` to pass through the completed handoff. Once Kilo produces a successful native summary, the handoff becomes persistent context for subsequent calls.
 
-The native compaction call still runs in agentic mode. This is intentionally an additive prototype: it does not replace Kilo's summary message, fabricate tool history, or force the resumed model to read a file. The plugin reads the handoff and injects it directly as labelled historical context through the system hook. This costs extra context and an additional native compaction call, but avoids relying on a second model to accurately reproduce all details in the handoff.
+After Kilo's native pass-through call succeeds, the plugin also injects the original prepared handoff directly as labelled historical context through the system hook. This preserves the compactor's handoff even if the native model changes its copy. The extra native call and the handoff's system-context cost remain; removing that call requires upstream support for storing a completed handoff directly.
 
 Configured `operatingRules` are supplied on every model request, including before the first compaction. Latest explicit user changes take precedence. Model-generated handoff facts are labelled fallible historical evidence, not higher-priority instructions.
 
@@ -78,9 +80,9 @@ Current upstream uses the default `{ id, server }` export in `plugin.mjs`. `src/
 
 ### Inspect compactor reasoning
 
-Set `debugReasoning: true` in the plugin configuration and reload Kilo. It is disabled by default. Each compaction run then writes `debug.md` (readable) and `debug.jsonl` (structured) next to its transcript and handoff. They include provider-returned reasoning, response text, tool arguments/results, and finish reasons; output-limit responses are saved before the error is raised. Logs update after each non-streaming model response, not token by token, and are not displayed inside Kilo's conversation UI. Missing or opaque reasoning cannot be reconstructed. OpenRouter reasoning is already requested by the example config.
+Reasoning diagnostics are **enabled by default** in agentic mode, including when `debugReasoning` is omitted. Set `debugReasoning: false` in the plugin configuration and reload Kilo to disable them. Each agentic compaction run writes `debug.md` (readable) and `debug.jsonl` (structured) next to its transcript and handoff as responses arrive. They include provider-returned reasoning, response text, tool arguments/results, and finish reasons; output-limit responses are saved before the error is raised. Logs update after each non-streaming model response, not token by token, and are not displayed inside Kilo's conversation UI. Missing or opaque reasoning cannot be reconstructed. OpenRouter reasoning is already requested by the example config.
 
-These optional logs may contain conversation details and code, like the transcript itself. Request headers are not logged and the configured API key is redacted if echoed. The existing compaction-folder Git ignore applies. To watch from PowerShell after the file appears, use `Get-Content -LiteralPath '<run-directory>/debug.md' -Tail 80 -Wait`.
+These logs may contain conversation details and code, like the transcript itself. Request headers are not logged and the configured API key is redacted if echoed. The existing compaction-folder Git ignore applies. To watch from PowerShell after the file appears, use `Get-Content -LiteralPath '<run-directory>/debug.md' -Tail 80 -Wait`.
 
 - `<workspace>/.kilo/compaction/<session-hash>/<run-id>/` holds transcript snapshots, notes, handoffs, and tool-name traces. `active.json` lives in the session directory. The workspace is Kilo's supplied `directory`, not the plugin installation directory. An explicit `stateDirectory` can override this default. Add `.kilo/compaction/` to each project's Git ignore rules (already done here). Snapshots may contain source code and tool output. Reasoning parts and media bytes are omitted. There is no retention cleanup yet. Older prototype artifacts in `.state/` are left untouched; they are not migrated.
 - We archive all messages returned by Kilo's session SDK, including the recent tail, not the original database bytes. Already-pruned tool content cannot be recovered. Earlier summaries are available to the compactor in this snapshot.

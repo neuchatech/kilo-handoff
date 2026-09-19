@@ -1,5 +1,6 @@
 {
   "mode": "agentic",
+  "debugReasoning": true,
   "endpoint": "https://openrouter.ai/api/v1/chat/completions",
   "model": "poolside/laguna-s-2.1",
   "allowedHosts": [
