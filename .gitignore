@@ -1,0 +1,11 @@
+node_modules/
+.state/
+.kilo/compaction/
+*.local.json
+.env
+coverage/
+/demo-lab/
+.vscode/
+dist/
+*.tgz
+/kilo.json

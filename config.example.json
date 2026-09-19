@@ -1,0 +1,15 @@
+{
+  "mode": "prompt",
+  "operatingRules": "Builds require the user to run Visual Studio. Ask the user when a build is needed and wait for their output. Do not attempt shell builds unless the user explicitly asks to investigate building from the shell.",
+  "endpoint": "http://127.0.0.1:8080/v1/chat/completions",
+  "model": "REPLACE_WITH_LOCAL_MODEL_ID",
+  "allowedHosts": [
+    "127.0.0.1"
+  ],
+  "apiKeyEnv": "KILO_HANDOFF_API_KEY",
+  "maxHandoffChars": 18000,
+  "requestOptions": {
+    "max_tokens": 4096
+  },
+  "warnAfterMs": 180000
+}

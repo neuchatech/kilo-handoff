@@ -1,0 +1,17 @@
+{
+  "mode": "agentic",
+  "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "model": "poolside/laguna-s-2.1",
+  "allowedHosts": [
+    "openrouter.ai"
+  ],
+  "apiKeyEnv": "OPENROUTER_API_KEY",
+  "maxHandoffChars": 18000,
+  "requestOptions": {
+    "max_tokens": 16384,
+    "reasoning": {
+      "enabled": true
+    }
+  },
+  "warnAfterMs": 180000
+}

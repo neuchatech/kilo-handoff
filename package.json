@@ -1,0 +1,12 @@
+{
+  "name": "kilo-handoff",
+  "version": "1.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Agentic, file-backed context handoffs for Kilo Code",
+  "files": ["src/", "scripts/", "test/", "docs/", "README.md", "CHANGELOG.md", ".env.example", "config.example.json", "config.openrouter.example.json"],
+  "type": "module",
+  "main": "./src/plugin.mjs",
+  "engines": { "node": ">=22" },
+  "scripts": { "setup": "node scripts/setup.mjs", "test": "node --test test/prototype.test.mjs", "demo": "node test/demo.mjs", "test:live": "node test/demo.mjs --live" }
+}
